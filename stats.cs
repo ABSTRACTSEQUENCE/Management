@@ -15,11 +15,17 @@ namespace Management
 		public stats(Player[] pl)
 		{
 			InitializeComponent();
+			l_id.Text = "";
+			l_money.Text = "";
+			l_egp.Text = "";
+			l_esm.Text = "";
 			for(int i = 0; i < pl.Length;i++)
 			{
-				l_stats.Text +=pl[i].ToString();
+				l_id.Text +=pl[i].ID.ToString() + "\n";
+				l_esm.Text += pl[i].raw.ToString() + "\n";
+				l_egp.Text += pl[i].ready.ToString() + "\n";
+				l_money.Text += pl[i].money.ToString() + "\n";
 			}
 		}
-
 	}
 }

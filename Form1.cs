@@ -1,5 +1,4 @@
-﻿using System.Threading;
-using System.Windows.Forms;
+﻿using System.Windows.Forms;
 namespace Management
 {
 	public partial class Form1 : Form
@@ -10,11 +9,19 @@ namespace Management
 		int costs_raw = 300;
 		int month = 1;
 		int i = 0;
-		public enum Request
+		enum Request
 		{
 			buy,
 			sell
 		}
+		enum Stage
+		{
+			LeadCalc,
+			Costs,
+			Request,
+			Result
+		}
+		Stage stage;
 		Request rq;
 		public Form1(int Players) //Players будет принимать кол-во игроков
 		{
@@ -35,49 +42,40 @@ namespace Management
 
 		private void bt_continue_Click(object sender, System.EventArgs e)
 		{
+			if (i == players.Length) i = 0;
+			l_turn.Text = i.ToString();
 			l_status.Text = "";
-			switch (l_stage.Text.ToLower())
+			switch (stage)
 			{
-				case "":
+				case Stage.LeadCalc:
 					l_stage.Text = "Определение старшего";
 					LeadCalc();
 					break;
-				case "определение старшего":
-					MonthlyCost(players[i]);
-					l_stage.Text = "Снятие издержек";
+				case Stage.Costs:
+					MonthlyCost();
 					break;
-				case "снятие издержек":
-					l_stage.Text = "Приём заявок на сырьё";
-					if (i < players.Length)
-					{
-						rq = Request.buy;
-						num_price.Minimum = bank.raw[bank.lvl];
-						num_price.Maximum = (decimal)players[i].money;
-						MakeRequest();
-					}
-					break;
-				case "приём заявок на сырьё":
+				case Stage.Request:
 					if (rq == Request.buy)
 					{
-						if (i >= players.Length) i = 0;
-						num_price.Minimum = bank.raw[bank.lvl];
-						num_price.Maximum = (decimal)players[i].money;
 						MakeRequest();
+						break;
 					}
 					else if (rq == Request.sell)
 					{
-						l_stage.Text = "Заявки на продажу готовой продукции";
 						MakeRequest();
+						break;
 					}
+					rq = Request.buy;
+					MakeRequest();
 					break;
-				case "заявки на продажу готовой продукции":
-					l_stage.Text = "Подведение итогов";
+				case Stage.Result:
 					Results();
 					break;
+
 			}
 		}
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-		public Player LeadCalc()
+		public void LeadCalc()
 		{
 			Player lead = new Player();
 			for (int i = 0; i < players.Length; i++)
@@ -106,35 +104,29 @@ namespace Management
 				}
 			}
 			l_status.Text += $"Игрок {lead.ID} становится старшим в этом месяце\n";
-			return lead;
-			//Console.WriteLine($"Игрок {lead.ID} в этом месяце старший");
-			/////////////////////////
+			stage = Stage.Costs;
 		}
-		public void MonthlyCost(Player p)
+		public void MonthlyCost()
 		{
-			calculate(p); //надо убрать этот метод
-			//Метод calculate вычисляет издержки переданного в параметры игрока
-			void calculate(Player player)
+			l_stage.Text = "Снятие издержек";
+			//Метод BankruptCheck проверяет банкрот ли игрок
+			int total = 0;
+			l_status.Text += $"Игрок {players[i].ID}:\nНаличность: {players[i].money}\n";
+			if (players[i].bankrupt)
 			{
-				//Метод BankruptCheck проверяет банкрот ли игрок
-				int total = 0;
-				l_status.Text += $"Игрок {player.ID}:\nНаличность: {player.money}\n";
-				if (player.bankrupt)
-				{
-					l_status.Text += "Этот игрок является банкротом";
-					return;
-				}
-				l_status.Text += $"Единиц сырой продукции: { player.raw}\nЦена за штуку: { costs_raw}$({ costs_raw * player.raw}$ итого)\n\n";
-				total += costs_raw * player.raw;
-				l_status.Text += $"Единиц готовой продукции: {player.ready}\nЦена за штуку: {costs_ready}$ (итого {player.ready * costs_ready}$)\n\n";
-				total += costs_ready * player.ready;
-				l_status.Text += $"Итого к оплате {total}\n$";
-				player.money -= total;
-				BankruptCheck(player);
+				l_status.Text += "Этот игрок является банкротом";
+				return;
 			}
-
+			l_status.Text += $"Единиц сырой продукции: { players[i].raw}\nЦена за штуку: { costs_raw}$({ costs_raw * players[i].raw}$ итого)\n\n";
+			total += costs_raw * players[i].raw;
+			l_status.Text += $"Единиц готовой продукции: {players[i].ready}\nЦена за штуку: {costs_ready}$ (итого {players[i].ready * costs_ready}$)\n\n";
+			total += costs_ready * players[i].ready;
+			l_status.Text += $"Итого к оплате {total}\n$";
+			players[i].money -= total;
+			BankruptCheck(players[i]);
+			stage = Stage.Request;
 		}
-		//В методе ниже нужно сделать очерёдность (первый лидер, дальше по убыванию)
+		//В методе Request нужно сделать очерёдность (первый лидер, дальше по убыванию)
 		public void RequestVisibility(bool on)
 		{
 			if (on)
@@ -158,12 +150,23 @@ namespace Management
 		}
 		public void MakeRequest()
 		{
+			l_stage.Text = "Приём заявок на сырьё";
 			RequestVisibility(true);
 			if (rq == Request.buy)
+			{
+				num_price.Minimum = bank.raw[bank.lvl];
+				num_price.Maximum = (decimal)players[i].money;
 				l_status.Text = "Введите количество желаемого сырья и цену";
-
+			}
 			else if (rq == Request.sell)
+			{
+				l_stage.Text = "Заявки на продажу готовой продукции";
+				num_price.Maximum = 99999999;
 				l_status.Text = "Введите количество продаваемого продукта и желаемую цену";
+				num_amount.Maximum = players[i].ready;
+			}
+			if (i == players.Length-1) stage = Stage.Result;
+			else i++;
 		}
 		public void BankruptCheck(Player player)
 		{
@@ -174,11 +177,11 @@ namespace Management
 		}
 		private void Results()
 		{
-			foreach(Player p in players)
+			l_stage.Text = "Подведение итогов";
+			foreach (Player p in players)
 			{
-				
 				if (p.bankrupt) continue;
-				if(p.requested_raw_amount * p.requested_raw_price >= bank.raw[bank.lvl])
+				if (p.requested_raw_amount * p.requested_raw_price >= bank.raw[bank.lvl])
 				{
 					p.money -= p.requested_raw_amount * p.requested_raw_price;
 					l_status.Text = $"Игрок {p.ID}:\nЗаказано {p.requested_raw_amount} единиц сырья по запрошенной цене {p.requested_raw_price}\nОставшийся баланс: {p.money}";
@@ -187,13 +190,14 @@ namespace Management
 					else
 						l_status.Text += "\nВ банке недостаточно сырья для продажи";
 				}
-				if(p.requested_ready_amount * p.requested_ready_price <= bank.ready[bank.lvl])
+				if (p.requested_ready_amount * p.requested_ready_price <= bank.ready[bank.lvl])
 				{
 					p.money += p.requested_ready_price * p.requested_ready_amount;
 					l_status.Text = $"Игрок {p.ID}:\nЗапрошено {p.requested_ready_price}$ за единицу готовой продукции в количестве {p.requested_ready_amount}\nОставшийся баланс: {p.money}";
-
 				}
 			}
+			l_stage.Text = "";
+			i++;
 		}
 
 		private void num_amount_bt_OK_Click(object sender, System.EventArgs e)
@@ -213,21 +217,36 @@ namespace Management
 					rq = Request.sell;
 					break;
 				case Request.sell:
-						players[0].requested_ready_amount = (int)num_amount.Value;
-						players[0].requested_ready_price = (int)num_price.Value;
-						l_status.Text += $"\nБудет продано {num_amount.Value} продукта по цене {num_price.Value}";
-					
+					players[0].requested_ready_amount = (int)num_amount.Value;
+					players[0].requested_ready_price = (int)num_price.Value;
+					if (num_amount.Value == 0) players[i].requested_ready_price = 0;
+					l_status.Text += $"\nБудет продано {players[i].requested_ready_amount} продукта по цене {players[i].requested_ready_price}";
 					break;
 			}
-			i++;
 			RequestVisibility(false);
 		}
 
 		private void bt_stats_Click(object sender, System.EventArgs e)
 		{
-			this.Visible = false;
 			stats st = new stats(players);
 			st.ShowDialog();
+		}
+
+		private void num_amount_ValueChanged(object sender, System.EventArgs e)
+		{
+			if (rq == Request.sell)
+			{
+				l_status.Text = "Введите количество продаваемого сырья и цену";
+				num_amount.Maximum = players[i].ready;
+			}
+			if (rq == Request.buy)
+			{
+
+				//num_amount.Maximum = (decimal)players[i].money / num_amount.Value;
+				if (num_amount.Value * num_price.Value > (decimal)players[i].money) num_amount.Value = 0;
+				l_status.Text = "Введите количество закупаемого сырья";
+			}
+			l_status.Text += $"\nИтоговая цена: {num_amount.Value * num_price.Value}";
 		}
 	}
 }
